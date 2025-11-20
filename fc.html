@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashcard Master - Offline Study App</title>
+    <title>Flashcard Master Pro - Unlimited Storage</title>
     <style>
         * {
             margin: 0;
@@ -42,6 +42,14 @@
         header p {
             opacity: 0.9;
             font-size: 1.1em;
+        }
+
+        .storage-info {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9em;
         }
 
         .main-content {
@@ -121,6 +129,11 @@
 
         .btn-secondary {
             background: #6b7280;
+            color: white;
+        }
+
+        .btn-info {
+            background: #3b82f6;
             color: white;
         }
 
@@ -439,6 +452,24 @@
             opacity: 0.9;
         }
 
+        .export-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 12px;
+        }
+
+        .export-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
         @media (max-width: 768px) {
             .deck-grid {
                 grid-template-columns: 1fr;
@@ -461,8 +492,11 @@
 <body>
     <div class="container">
         <header>
-            <h1>📚 Flashcard Master</h1>
-            <p>Master any subject with intelligent spaced repetition</p>
+            <h1>📚 Flashcard Master Pro</h1>
+            <p>Unlimited storage with IndexedDB - Perfect for image-heavy studying</p>
+            <div class="storage-info">
+                ✨ No storage limits! Store thousands of high-quality images
+            </div>
         </header>
 
         <div class="main-content">
@@ -470,6 +504,7 @@
                 <button class="nav-tab active" data-tab="decks">My Decks</button>
                 <button class="nav-tab" data-tab="study">Study</button>
                 <button class="nav-tab" data-tab="statistics">Statistics</button>
+                <button class="nav-tab" data-tab="backup">Backup & Export</button>
             </div>
 
             <!-- Decks Tab -->
@@ -521,6 +556,38 @@
             <div class="tab-content" id="statistics-tab">
                 <h2 style="margin-bottom: 20px;">Your Progress</h2>
                 <div class="stats-grid" id="stats-grid"></div>
+            </div>
+
+            <!-- Backup & Export Tab -->
+            <div class="tab-content" id="backup-tab">
+                <h2 style="margin-bottom: 20px;">Backup & Data Management</h2>
+                
+                <div class="export-section">
+                    <h3>📤 Export Your Data</h3>
+                    <p style="margin-bottom: 15px; color: #666;">Download all your decks and cards to a file. Keep it safe as a backup!</p>
+                    <div class="export-buttons">
+                        <button class="btn btn-primary" onclick="exportAllData()">Export All Data (JSON)</button>
+                        <button class="btn btn-info" onclick="exportDecksList()">Export Deck Names Only</button>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3>📥 Import Data</h3>
+                    <p style="margin-bottom: 15px; color: #666;">Restore your data from a previously exported file.</p>
+                    <input type="file" id="import-file" accept=".json" style="margin-bottom: 10px;">
+                    <button class="btn btn-success" onclick="importData()">Import Data</button>
+                </div>
+
+                <div class="export-section">
+                    <h3>🗑️ Clear All Data</h3>
+                    <p style="margin-bottom: 15px; color: #666;">Warning: This will permanently delete all your decks and cards!</p>
+                    <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+                </div>
+
+                <div class="export-section">
+                    <h3>💾 Database Information</h3>
+                    <p id="db-info" style="color: #666;">Loading database info...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -592,40 +659,161 @@
     </div>
 
     <script>
-        // Data structure
-        let appData = {
-            decks: [],
+        // IndexedDB Setup
+        let db;
+        const DB_NAME = 'FlashcardMasterDB';
+        const DB_VERSION = 1;
+        const STORE_DECKS = 'decks';
+        const STORE_CARDS = 'cards';
+        const STORE_IMAGES = 'images';
+
+        // Initialize IndexedDB
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+
+                    // Create decks store
+                    if (!db.objectStoreNames.contains(STORE_DECKS)) {
+                        const deckStore = db.createObjectStore(STORE_DECKS, { keyPath: 'id' });
+                        deckStore.createIndex('name', 'name', { unique: false });
+                    }
+
+                    // Create cards store
+                    if (!db.objectStoreNames.contains(STORE_CARDS)) {
+                        const cardStore = db.createObjectStore(STORE_CARDS, { keyPath: 'id' });
+                        cardStore.createIndex('deckId', 'deckId', { unique: false });
+                    }
+
+                    // Create images store (stores Blob objects)
+                    if (!db.objectStoreNames.contains(STORE_IMAGES)) {
+                        db.createObjectStore(STORE_IMAGES, { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        // Database operations
+        async function addToDB(storeName, data) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.add(data);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function updateInDB(storeName, data) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.put(data);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function getFromDB(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.get(id);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function getAllFromDB(storeName) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function getByIndexFromDB(storeName, indexName, value) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const index = store.index(indexName);
+                const request = index.getAll(value);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function deleteFromDB(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // Image handling
+        async function saveImageToDb(file) {
+            const id = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
+            const imageData = {
+                id: id,
+                blob: file,
+                type: file.type,
+                name: file.name
+            };
+            await addToDB(STORE_IMAGES, imageData);
+            return id;
+        }
+
+        async function getImageFromDb(imageId) {
+            if (!imageId) return null;
+            const imageData = await getFromDB(STORE_IMAGES, imageId);
+            if (!imageData) return null;
+            return URL.createObjectURL(imageData.blob);
+        }
+
+        async function deleteImageFromDb(imageId) {
+            if (!imageId) return;
+            await deleteFromDB(STORE_IMAGES, imageId);
+        }
+
+        // Application state
+        let appState = {
             currentDeckId: null,
             currentCardId: null,
             studySession: null
         };
 
-        // Load data from localStorage
-        function loadData() {
-            const saved = localStorage.getItem('flashcardAppData');
-            if (saved) {
-                appData = JSON.parse(saved);
-            }
-        }
-
-        // Save data to localStorage
-        function saveData() {
-            localStorage.setItem('flashcardAppData', JSON.stringify(appData));
-        }
-
         // Initialize app
-        function init() {
-            loadData();
-            renderDecks();
-            renderStudyDecks();
-            renderStatistics();
-            setupTabNavigation();
+        async function init() {
+            try {
+                await initDB();
+                await renderDecks();
+                await renderStudyDecks();
+                await renderStatistics();
+                await updateDBInfo();
+                setupTabNavigation();
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                alert('Error initializing database. Please refresh the page.');
+            }
         }
 
         // Tab navigation
         function setupTabNavigation() {
             document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
+                tab.addEventListener('click', async () => {
                     const tabName = tab.dataset.tab;
                     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -633,9 +821,11 @@
                     document.getElementById(`${tabName}-tab`).classList.add('active');
                     
                     if (tabName === 'study') {
-                        renderStudyDecks();
+                        await renderStudyDecks();
                     } else if (tabName === 'statistics') {
-                        renderStatistics();
+                        await renderStatistics();
+                    } else if (tabName === 'backup') {
+                        await updateDBInfo();
                     }
                 });
             });
@@ -646,18 +836,18 @@
             document.getElementById('deck-modal-title').textContent = 'Create New Deck';
             document.getElementById('deck-name').value = '';
             document.getElementById('deck-description').value = '';
-            appData.currentDeckId = null;
+            appState.currentDeckId = null;
             document.getElementById('deck-modal').classList.add('active');
         }
 
-        function showEditDeckModal(deckId) {
-            const deck = appData.decks.find(d => d.id === deckId);
+        async function showEditDeckModal(deckId) {
+            const deck = await getFromDB(STORE_DECKS, deckId);
             if (!deck) return;
             
             document.getElementById('deck-modal-title').textContent = 'Edit Deck';
             document.getElementById('deck-name').value = deck.name;
             document.getElementById('deck-description').value = deck.description || '';
-            appData.currentDeckId = deckId;
+            appState.currentDeckId = deckId;
             document.getElementById('deck-modal').classList.add('active');
         }
 
@@ -665,7 +855,7 @@
             document.getElementById('deck-modal').classList.remove('active');
         }
 
-        function saveDeck() {
+        async function saveDeck() {
             const name = document.getElementById('deck-name').value.trim();
             if (!name) {
                 alert('Please enter a deck name');
@@ -674,46 +864,69 @@
 
             const description = document.getElementById('deck-description').value.trim();
 
-            if (appData.currentDeckId) {
-                // Edit existing deck
-                const deck = appData.decks.find(d => d.id === appData.currentDeckId);
-                deck.name = name;
-                deck.description = description;
-            } else {
-                // Create new deck
-                const newDeck = {
-                    id: Date.now().toString(),
-                    name: name,
-                    description: description,
-                    cards: [],
-                    createdAt: new Date().toISOString(),
-                    stats: {
-                        totalStudies: 0,
-                        cardsLearned: 0
-                    }
-                };
-                appData.decks.push(newDeck);
-            }
+            try {
+                if (appState.currentDeckId) {
+                    // Edit existing deck
+                    const deck = await getFromDB(STORE_DECKS, appState.currentDeckId);
+                    deck.name = name;
+                    deck.description = description;
+                    await updateInDB(STORE_DECKS, deck);
+                } else {
+                    // Create new deck
+                    const newDeck = {
+                        id: Date.now().toString(),
+                        name: name,
+                        description: description,
+                        createdAt: new Date().toISOString(),
+                        stats: {
+                            totalStudies: 0,
+                            cardsLearned: 0
+                        }
+                    };
+                    await addToDB(STORE_DECKS, newDeck);
+                }
 
-            saveData();
-            renderDecks();
-            renderStudyDecks();
-            closeDeckModal();
+                await renderDecks();
+                await renderStudyDecks();
+                closeDeckModal();
+            } catch (error) {
+                console.error('Error saving deck:', error);
+                alert('Error saving deck. Please try again.');
+            }
         }
 
-        function deleteDeck(deckId) {
-            if (!confirm('Are you sure you want to delete this deck? This cannot be undone.')) {
+        async function deleteDeck(deckId) {
+            if (!confirm('Are you sure you want to delete this deck? All cards will be deleted too!')) {
                 return;
             }
-            appData.decks = appData.decks.filter(d => d.id !== deckId);
-            saveData();
-            renderDecks();
-            renderStudyDecks();
+
+            try {
+                // Get all cards in this deck
+                const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deckId);
+                
+                // Delete all images associated with cards
+                for (const card of cards) {
+                    if (card.frontImageId) await deleteImageFromDb(card.frontImageId);
+                    if (card.backImageId) await deleteImageFromDb(card.backImageId);
+                    await deleteFromDB(STORE_CARDS, card.id);
+                }
+
+                // Delete the deck
+                await deleteFromDB(STORE_DECKS, deckId);
+                
+                await renderDecks();
+                await renderStudyDecks();
+            } catch (error) {
+                console.error('Error deleting deck:', error);
+                alert('Error deleting deck. Please try again.');
+            }
         }
 
-        function renderDecks() {
+        async function renderDecks() {
             const grid = document.getElementById('deck-grid');
-            if (appData.decks.length === 0) {
+            const decks = await getAllFromDB(STORE_DECKS);
+            
+            if (decks.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📚</div>
@@ -724,11 +937,19 @@
                 return;
             }
 
-            grid.innerHTML = appData.decks.map(deck => `
+            const deckCards = await Promise.all(decks.map(async deck => {
+                const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deck.id);
+                return {
+                    ...deck,
+                    cardCount: cards.length
+                };
+            }));
+
+            grid.innerHTML = deckCards.map(deck => `
                 <div class="deck-card">
                     <h3>${deck.name}</h3>
                     ${deck.description ? `<p class="deck-info">${deck.description}</p>` : ''}
-                    <p class="deck-info">📇 ${deck.cards.length} cards</p>
+                    <p class="deck-info">📇 ${deck.cardCount} cards</p>
                     <p class="deck-info">📊 ${deck.stats.totalStudies} study sessions</p>
                     <div class="deck-actions">
                         <button class="btn btn-primary" onclick="viewDeckCards('${deck.id}')">View Cards</button>
@@ -741,22 +962,21 @@
         }
 
         // Card Management
-        function viewDeckCards(deckId) {
-            const deck = appData.decks.find(d => d.id === deckId);
+        async function viewDeckCards(deckId) {
+            const deck = await getFromDB(STORE_DECKS, deckId);
             if (!deck) return;
 
-            appData.currentDeckId = deckId;
+            appState.currentDeckId = deckId;
             document.getElementById('view-cards-title').textContent = `${deck.name} - Cards`;
-            renderCardsList();
+            await renderCardsList();
             document.getElementById('view-cards-modal').classList.add('active');
         }
 
-        function renderCardsList() {
-            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
-            if (!deck) return;
-
+        async function renderCardsList() {
             const list = document.getElementById('cards-list');
-            if (deck.cards.length === 0) {
+            const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', appState.currentDeckId);
+
+            if (cards.length === 0) {
                 list.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">🃏</div>
@@ -767,18 +987,18 @@
                 return;
             }
 
-            list.innerHTML = deck.cards.map(card => `
+            list.innerHTML = cards.map(card => `
                 <div class="card-item">
                     <div class="card-item-header">
                         <strong>Front:</strong>
                     </div>
                     <p>${card.frontText || '(No text)'}</p>
-                    ${card.frontImage ? '<p><em>📷 Image attached</em></p>' : ''}
+                    ${card.frontImageId ? '<p><em>📷 Image attached</em></p>' : ''}
                     <div class="card-item-header" style="margin-top: 10px;">
                         <strong>Back:</strong>
                     </div>
                     <p>${card.backText || '(No text)'}</p>
-                    ${card.backImage ? '<p><em>📷 Image attached</em></p>' : ''}
+                    ${card.backImageId ? '<p><em>📷 Image attached</em></p>' : ''}
                     <div class="card-item-actions">
                         <button class="btn btn-warning" onclick="editCard('${card.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="deleteCard('${card.id}')">Delete</button>
@@ -797,13 +1017,12 @@
             document.getElementById('back-preview').style.display = 'none';
             document.getElementById('remove-front-btn').style.display = 'none';
             document.getElementById('remove-back-btn').style.display = 'none';
-            appData.currentCardId = null;
+            appState.currentCardId = null;
             document.getElementById('card-modal').classList.add('active');
         }
 
-        function editCard(cardId) {
-            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
-            const card = deck.cards.find(c => c.id === cardId);
+        async function editCard(cardId) {
+            const card = await getFromDB(STORE_CARDS, cardId);
             if (!card) return;
 
             document.getElementById('card-modal-title').textContent = 'Edit Card';
@@ -811,31 +1030,37 @@
             document.getElementById('card-back-text-input').value = card.backText || '';
             
             // Handle front image
-            if (card.frontImage) {
-                document.getElementById('front-preview').src = card.frontImage;
-                document.getElementById('front-preview').style.display = 'block';
+            const frontPreview = document.getElementById('front-preview');
+            if (card.frontImageId) {
+                const imageUrl = await getImageFromDb(card.frontImageId);
+                frontPreview.src = imageUrl;
+                frontPreview.style.display = 'block';
                 document.getElementById('remove-front-btn').style.display = 'block';
             } else {
-                document.getElementById('front-preview').style.display = 'none';
+                frontPreview.style.display = 'none';
                 document.getElementById('remove-front-btn').style.display = 'none';
             }
             
             // Handle back image
-            if (card.backImage) {
-                document.getElementById('back-preview').src = card.backImage;
-                document.getElementById('back-preview').style.display = 'block';
+            const backPreview = document.getElementById('back-preview');
+            if (card.backImageId) {
+                const imageUrl = await getImageFromDb(card.backImageId);
+                backPreview.src = imageUrl;
+                backPreview.style.display = 'block';
                 document.getElementById('remove-back-btn').style.display = 'block';
             } else {
-                document.getElementById('back-preview').style.display = 'none';
+                backPreview.style.display = 'none';
                 document.getElementById('remove-back-btn').style.display = 'none';
             }
 
-            appData.currentCardId = cardId;
+            appState.currentCardId = cardId;
+            appState.editingCardData = card; // Store original card data
             document.getElementById('card-modal').classList.add('active');
         }
 
         function closeCardModal() {
             document.getElementById('card-modal').classList.remove('active');
+            appState.editingCardData = null;
         }
 
         function closeViewCardsModal() {
@@ -866,70 +1091,141 @@
             preview.src = '';
             preview.style.display = 'none';
             removeBtn.style.display = 'none';
+
+            // Mark for deletion if editing
+            if (appState.currentCardId) {
+                if (!appState.imagesToDelete) appState.imagesToDelete = [];
+                const card = appState.editingCardData;
+                if (side === 'front' && card.frontImageId) {
+                    appState.imagesToDelete.push(card.frontImageId);
+                } else if (side === 'back' && card.backImageId) {
+                    appState.imagesToDelete.push(card.backImageId);
+                }
+            }
         }
 
-        function saveCard() {
+        async function saveCard() {
             const frontText = document.getElementById('card-front-text-input').value.trim();
             const backText = document.getElementById('card-back-text-input').value.trim();
+            const frontInput = document.getElementById('card-front-image-input');
+            const backInput = document.getElementById('card-back-image-input');
             const frontPreview = document.getElementById('front-preview');
             const backPreview = document.getElementById('back-preview');
 
-            if (!frontText && !frontPreview.src) {
+            if (!frontText && !frontInput.files.length && !frontPreview.src) {
                 alert('Please add at least text or an image to the front of the card');
                 return;
             }
 
-            if (!backText && !backPreview.src) {
+            if (!backText && !backInput.files.length && !backPreview.src) {
                 alert('Please add at least text or an image to the back of the card');
                 return;
             }
 
-            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+            try {
+                let frontImageId = null;
+                let backImageId = null;
 
-            const cardData = {
-                frontText: frontText,
-                backText: backText,
-                frontImage: frontPreview.style.display !== 'none' ? frontPreview.src : null,
-                backImage: backPreview.style.display !== 'none' ? backPreview.src : null
-            };
+                // Handle front image
+                if (frontInput.files.length > 0) {
+                    frontImageId = await saveImageToDb(frontInput.files[0]);
+                    // Delete old image if editing
+                    if (appState.currentCardId && appState.editingCardData?.frontImageId) {
+                        await deleteImageFromDb(appState.editingCardData.frontImageId);
+                    }
+                } else if (appState.currentCardId && frontPreview.style.display !== 'none') {
+                    // Keep existing image
+                    frontImageId = appState.editingCardData?.frontImageId;
+                }
 
-            if (appData.currentCardId) {
-                // Edit existing card
-                const card = deck.cards.find(c => c.id === appData.currentCardId);
-                Object.assign(card, cardData);
-            } else {
-                // Create new card
-                const newCard = {
-                    id: Date.now().toString(),
-                    ...cardData,
-                    createdAt: new Date().toISOString()
+                // Handle back image
+                if (backInput.files.length > 0) {
+                    backImageId = await saveImageToDb(backInput.files[0]);
+                    // Delete old image if editing
+                    if (appState.currentCardId && appState.editingCardData?.backImageId) {
+                        await deleteImageFromDb(appState.editingCardData.backImageId);
+                    }
+                } else if (appState.currentCardId && backPreview.style.display !== 'none') {
+                    // Keep existing image
+                    backImageId = appState.editingCardData?.backImageId;
+                }
+
+                // Delete any images marked for deletion
+                if (appState.imagesToDelete) {
+                    for (const imageId of appState.imagesToDelete) {
+                        await deleteImageFromDb(imageId);
+                    }
+                    appState.imagesToDelete = [];
+                }
+
+                const cardData = {
+                    frontText: frontText,
+                    backText: backText,
+                    frontImageId: frontImageId,
+                    backImageId: backImageId,
+                    deckId: appState.currentDeckId
                 };
-                deck.cards.push(newCard);
-            }
 
-            saveData();
-            renderCardsList();
-            renderDecks();
-            closeCardModal();
+                if (appState.currentCardId) {
+                    // Edit existing card
+                    cardData.id = appState.currentCardId;
+                    cardData.createdAt = appState.editingCardData.createdAt;
+                    await updateInDB(STORE_CARDS, cardData);
+                } else {
+                    // Create new card
+                    cardData.id = Date.now().toString();
+                    cardData.createdAt = new Date().toISOString();
+                    await addToDB(STORE_CARDS, cardData);
+                }
+
+                await renderCardsList();
+                await renderDecks();
+                closeCardModal();
+            } catch (error) {
+                console.error('Error saving card:', error);
+                alert('Error saving card. Please try again.');
+            }
         }
 
-        function deleteCard(cardId) {
+        async function deleteCard(cardId) {
             if (!confirm('Are you sure you want to delete this card?')) {
                 return;
             }
-            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
-            deck.cards = deck.cards.filter(c => c.id !== cardId);
-            saveData();
-            renderCardsList();
-            renderDecks();
+
+            try {
+                const card = await getFromDB(STORE_CARDS, cardId);
+                
+                // Delete associated images
+                if (card.frontImageId) await deleteImageFromDb(card.frontImageId);
+                if (card.backImageId) await deleteImageFromDb(card.backImageId);
+                
+                // Delete the card
+                await deleteFromDB(STORE_CARDS, cardId);
+                
+                await renderCardsList();
+                await renderDecks();
+            } catch (error) {
+                console.error('Error deleting card:', error);
+                alert('Error deleting card. Please try again.');
+            }
         }
 
         // Study Session
-        function renderStudyDecks() {
+        async function renderStudyDecks() {
             const grid = document.getElementById('study-deck-grid');
-            const studyDecks = appData.decks.filter(d => d.cards.length > 0);
+            const decks = await getAllFromDB(STORE_DECKS);
+            
+            const studyDecks = await Promise.all(decks.map(async deck => {
+                const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deck.id);
+                return {
+                    ...deck,
+                    cardCount: cards.length
+                };
+            }));
 
-            if (studyDecks.length === 0) {
+            const availableDecks = studyDecks.filter(d => d.cardCount > 0);
+
+            if (availableDecks.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📚</div>
@@ -940,49 +1236,50 @@
                 return;
             }
 
-            grid.innerHTML = studyDecks.map(deck => `
+            grid.innerHTML = availableDecks.map(deck => `
                 <div class="deck-card" onclick="startStudy('${deck.id}')">
                     <h3>${deck.name}</h3>
                     ${deck.description ? `<p class="deck-info">${deck.description}</p>` : ''}
-                    <p class="deck-info">📇 ${deck.cards.length} cards</p>
+                    <p class="deck-info">📇 ${deck.cardCount} cards</p>
                     <p class="deck-info">📊 ${deck.stats.totalStudies} sessions completed</p>
                     <button class="btn btn-primary" style="width: 100%; margin-top: 10px;">Start Studying</button>
                 </div>
             `).join('');
         }
 
-        function startStudy(deckId) {
-            const deck = appData.decks.find(d => d.id === deckId);
-            if (!deck || deck.cards.length === 0) {
+        async function startStudy(deckId) {
+            const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deckId);
+            
+            if (cards.length === 0) {
                 alert('This deck has no cards to study!');
                 return;
             }
 
             // Initialize study session
-            appData.studySession = {
+            appState.studySession = {
                 deckId: deckId,
-                studyCards: [...deck.cards],
+                studyCards: [...cards],
                 currentIndex: 0,
                 isFlipped: false,
                 completed: 0,
-                total: deck.cards.length
+                total: cards.length
             };
 
             // Shuffle cards
-            appData.studySession.studyCards.sort(() => Math.random() - 0.5);
+            appState.studySession.studyCards.sort(() => Math.random() - 0.5);
 
             // Show study interface
             document.getElementById('study-selection').style.display = 'none';
             document.getElementById('study-session').style.display = 'block';
             document.getElementById('study-complete').style.display = 'none';
 
-            showCurrentCard();
+            await showCurrentCard();
         }
 
-        function showCurrentCard() {
-            const session = appData.studySession;
+        async function showCurrentCard() {
+            const session = appState.studySession;
             if (!session || session.currentIndex >= session.studyCards.length) {
-                completeStudySession();
+                await completeStudySession();
                 return;
             }
 
@@ -995,8 +1292,9 @@
             // Front
             document.getElementById('card-front-text').textContent = card.frontText || '';
             const frontImg = document.getElementById('card-front-image');
-            if (card.frontImage) {
-                frontImg.src = card.frontImage;
+            if (card.frontImageId) {
+                const imageUrl = await getImageFromDb(card.frontImageId);
+                frontImg.src = imageUrl;
                 frontImg.style.display = 'block';
             } else {
                 frontImg.style.display = 'none';
@@ -1005,8 +1303,9 @@
             // Back
             document.getElementById('card-back-text').textContent = card.backText || '';
             const backImg = document.getElementById('card-back-image');
-            if (card.backImage) {
-                backImg.src = card.backImage;
+            if (card.backImageId) {
+                const imageUrl = await getImageFromDb(card.backImageId);
+                backImg.src = imageUrl;
                 backImg.style.display = 'block';
             } else {
                 backImg.style.display = 'none';
@@ -1019,11 +1318,11 @@
         function flipCard() {
             const inner = document.getElementById('flashcard-inner');
             inner.classList.toggle('flipped');
-            appData.studySession.isFlipped = !appData.studySession.isFlipped;
+            appState.studySession.isFlipped = !appState.studySession.isFlipped;
         }
 
         function rateCard(rating) {
-            const session = appData.studySession;
+            const session = appState.studySession;
             if (!session || !session.isFlipped) {
                 if (!session.isFlipped) {
                     alert('Please flip the card to see the answer first!');
@@ -1054,7 +1353,7 @@
         }
 
         function updateStudyProgress() {
-            const session = appData.studySession;
+            const session = appState.studySession;
             const remaining = session.studyCards.length - session.currentIndex;
             const progress = Math.round((session.completed / session.total) * 100);
             
@@ -1066,50 +1365,55 @@
             progressFill.textContent = `${progress}%`;
         }
 
-        function completeStudySession() {
-            const session = appData.studySession;
-            const deck = appData.decks.find(d => d.id === session.deckId);
+        async function completeStudySession() {
+            const session = appState.studySession;
+            const deck = await getFromDB(STORE_DECKS, session.deckId);
             
             // Update statistics
             deck.stats.totalStudies++;
             deck.stats.cardsLearned = session.completed;
-            saveData();
+            await updateInDB(STORE_DECKS, deck);
 
             // Show completion screen
             document.getElementById('study-session').style.display = 'none';
             document.getElementById('study-complete').style.display = 'block';
             
-            renderStatistics();
+            await renderStatistics();
         }
 
-        function exitStudySession() {
-            if (appData.studySession) {
-                const deck = appData.decks.find(d => d.id === appData.studySession.deckId);
+        async function exitStudySession() {
+            if (appState.studySession) {
+                const deck = await getFromDB(STORE_DECKS, appState.studySession.deckId);
                 if (deck) {
                     deck.stats.totalStudies++;
-                    saveData();
+                    await updateInDB(STORE_DECKS, deck);
                 }
             }
             
-            appData.studySession = null;
+            appState.studySession = null;
             document.getElementById('study-selection').style.display = 'block';
             document.getElementById('study-session').style.display = 'none';
             document.getElementById('study-complete').style.display = 'none';
-            renderStudyDecks();
+            await renderStudyDecks();
         }
 
         // Statistics
-        function renderStatistics() {
+        async function renderStatistics() {
             const grid = document.getElementById('stats-grid');
+            const decks = await getAllFromDB(STORE_DECKS);
             
-            const totalDecks = appData.decks.length;
-            const totalCards = appData.decks.reduce((sum, deck) => sum + deck.cards.length, 0);
-            const totalStudies = appData.decks.reduce((sum, deck) => sum + deck.stats.totalStudies, 0);
-            const totalLearned = appData.decks.reduce((sum, deck) => sum + deck.stats.cardsLearned, 0);
+            let totalCards = 0;
+            for (const deck of decks) {
+                const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deck.id);
+                totalCards += cards.length;
+            }
+            
+            const totalStudies = decks.reduce((sum, deck) => sum + deck.stats.totalStudies, 0);
+            const totalLearned = decks.reduce((sum, deck) => sum + deck.stats.cardsLearned, 0);
 
             grid.innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-value">${totalDecks}</div>
+                    <div class="stat-value">${decks.length}</div>
                     <div class="stat-label">Total Decks</div>
                 </div>
                 <div class="stat-card">
@@ -1125,6 +1429,183 @@
                     <div class="stat-label">Cards Mastered</div>
                 </div>
             `;
+        }
+
+        // Backup and Export
+        async function exportAllData() {
+            try {
+                const decks = await getAllFromDB(STORE_DECKS);
+                const cards = await getAllFromDB(STORE_CARDS);
+                const images = await getAllFromDB(STORE_IMAGES);
+
+                // Convert image blobs to base64
+                const imagesWithBase64 = await Promise.all(images.map(async img => {
+                    const reader = new FileReader();
+                    return new Promise((resolve) => {
+                        reader.onload = () => {
+                            resolve({
+                                id: img.id,
+                                data: reader.result,
+                                type: img.type,
+                                name: img.name
+                            });
+                        };
+                        reader.readAsDataURL(img.blob);
+                    });
+                }));
+
+                const exportData = {
+                    version: 1,
+                    exportDate: new Date().toISOString(),
+                    decks: decks,
+                    cards: cards,
+                    images: imagesWithBase64
+                };
+
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `flashcards-backup-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+
+                alert('Data exported successfully!');
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                alert('Error exporting data. Please try again.');
+            }
+        }
+
+        async function exportDecksList() {
+            try {
+                const decks = await getAllFromDB(STORE_DECKS);
+                const decksList = await Promise.all(decks.map(async deck => {
+                    const cards = await getByIndexFromDB(STORE_CARDS, 'deckId', deck.id);
+                    return {
+                        name: deck.name,
+                        description: deck.description,
+                        cardCount: cards.length,
+                        stats: deck.stats
+                    };
+                }));
+
+                const dataStr = JSON.stringify(decksList, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `flashcards-decks-list-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting decks list:', error);
+                alert('Error exporting decks list. Please try again.');
+            }
+        }
+
+        async function importData() {
+            const fileInput = document.getElementById('import-file');
+            if (!fileInput.files.length) {
+                alert('Please select a file to import');
+                return;
+            }
+
+            if (!confirm('Importing will replace all your current data. Are you sure?')) {
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                const text = await file.text();
+                const importData = JSON.parse(text);
+
+                // Clear existing data
+                await clearAllDataSilent();
+
+                // Import decks
+                for (const deck of importData.decks) {
+                    await addToDB(STORE_DECKS, deck);
+                }
+
+                // Import cards
+                for (const card of importData.cards) {
+                    await addToDB(STORE_CARDS, card);
+                }
+
+                // Import images (convert base64 back to blobs)
+                for (const img of importData.images) {
+                    const response = await fetch(img.data);
+                    const blob = await response.blob();
+                    await addToDB(STORE_IMAGES, {
+                        id: img.id,
+                        blob: blob,
+                        type: img.type,
+                        name: img.name
+                    });
+                }
+
+                alert('Data imported successfully!');
+                await renderDecks();
+                await renderStudyDecks();
+                await renderStatistics();
+                await updateDBInfo();
+            } catch (error) {
+                console.error('Error importing data:', error);
+                alert('Error importing data. Please make sure the file is valid.');
+            }
+        }
+
+        async function clearAllData() {
+            if (!confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
+                return;
+            }
+
+            if (!confirm('This is your last warning! All decks, cards, and images will be permanently deleted!')) {
+                return;
+            }
+
+            await clearAllDataSilent();
+            alert('All data cleared successfully!');
+            await renderDecks();
+            await renderStudyDecks();
+            await renderStatistics();
+            await updateDBInfo();
+        }
+
+        async function clearAllDataSilent() {
+            const transaction = db.transaction([STORE_DECKS, STORE_CARDS, STORE_IMAGES], 'readwrite');
+            await transaction.objectStore(STORE_DECKS).clear();
+            await transaction.objectStore(STORE_CARDS).clear();
+            await transaction.objectStore(STORE_IMAGES).clear();
+        }
+
+        async function updateDBInfo() {
+            try {
+                const decks = await getAllFromDB(STORE_DECKS);
+                const cards = await getAllFromDB(STORE_CARDS);
+                const images = await getAllFromDB(STORE_IMAGES);
+
+                let totalSize = 0;
+                for (const img of images) {
+                    totalSize += img.blob.size;
+                }
+
+                const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+
+                document.getElementById('db-info').innerHTML = `
+                    <strong>Database Statistics:</strong><br>
+                    📚 Decks: ${decks.length}<br>
+                    🃏 Cards: ${cards.length}<br>
+                    🖼️ Images: ${images.length}<br>
+                    💾 Total Size: ${sizeMB} MB<br>
+                    <br>
+                    <em>Using IndexedDB - No storage limits!</em>
+                `;
+            } catch (error) {
+                console.error('Error getting DB info:', error);
+            }
         }
 
         // Initialize app when page loads
