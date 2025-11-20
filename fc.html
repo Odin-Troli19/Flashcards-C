@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard Master - Offline Study App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
+        }
+
+        .nav-tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .nav-tab:hover {
+            color: #667eea;
+        }
+
+        .nav-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .deck-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .deck-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 25px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .deck-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .deck-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .deck-info {
+            color: #666;
+            font-size: 0.9em;
+            margin: 5px 0;
+        }
+
+        .deck-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .deck-actions button {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .image-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .flashcard {
+            width: 100%;
+            max-width: 600px;
+            height: 400px;
+            margin: 0 auto 30px;
+            perspective: 1000px;
+        }
+
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+
+        .flashcard-inner.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .flashcard-front {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .flashcard-back {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-text {
+            font-size: 1.5em;
+            text-align: center;
+            margin-bottom: 20px;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .flashcard-image {
+            max-width: 90%;
+            max-height: 250px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .study-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .study-progress {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card-item {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .card-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .card-item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .card-item-actions button {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .deck-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .flashcard {
+                height: 350px;
+            }
+
+            .study-controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Flashcard Master</h1>
+            <p>Master any subject with intelligent spaced repetition</p>
+        </header>
+
+        <div class="main-content">
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="decks">My Decks</button>
+                <button class="nav-tab" data-tab="study">Study</button>
+                <button class="nav-tab" data-tab="statistics">Statistics</button>
+            </div>
+
+            <!-- Decks Tab -->
+            <div class="tab-content active" id="decks-tab">
+                <button class="btn btn-primary" onclick="showCreateDeckModal()">+ Create New Deck</button>
+                <div class="deck-grid" id="deck-grid"></div>
+            </div>
+
+            <!-- Study Tab -->
+            <div class="tab-content" id="study-tab">
+                <div id="study-selection">
+                    <h2 style="margin-bottom: 20px;">Select a deck to study</h2>
+                    <div class="deck-grid" id="study-deck-grid"></div>
+                </div>
+                <div id="study-session" style="display: none;">
+                    <button class="btn btn-secondary" onclick="exitStudySession()" style="margin-bottom: 20px;">← Exit Study</button>
+                    <div class="study-progress" id="study-progress"></div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill">0%</div>
+                    </div>
+                    <div class="flashcard">
+                        <div class="flashcard-inner" id="flashcard-inner" onclick="flipCard()">
+                            <div class="flashcard-front">
+                                <div class="flashcard-text" id="card-front-text"></div>
+                                <img id="card-front-image" class="flashcard-image" style="display: none;">
+                            </div>
+                            <div class="flashcard-back">
+                                <div class="flashcard-text" id="card-back-text"></div>
+                                <img id="card-back-image" class="flashcard-image" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="study-controls">
+                        <button class="btn btn-danger" onclick="rateCard('again')">😓 Again (×3)</button>
+                        <button class="btn btn-warning" onclick="rateCard('hard')">🤔 Hard (×2)</button>
+                        <button class="btn btn-success" onclick="rateCard('good')">👍 Good (×1)</button>
+                        <button class="btn btn-primary" onclick="rateCard('easy')">✅ Easy (Remove)</button>
+                    </div>
+                </div>
+                <div id="study-complete" style="display: none; text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 5em; margin-bottom: 20px;">🎉</div>
+                    <h2 style="margin-bottom: 20px;">Study Session Complete!</h2>
+                    <p style="font-size: 1.2em; color: #666; margin-bottom: 30px;">Great job! You've reviewed all cards in this session.</p>
+                    <button class="btn btn-primary" onclick="exitStudySession()">Back to Decks</button>
+                </div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div class="tab-content" id="statistics-tab">
+                <h2 style="margin-bottom: 20px;">Your Progress</h2>
+                <div class="stats-grid" id="stats-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Deck Modal -->
+    <div class="modal" id="deck-modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeDeckModal()">&times;</button>
+            <div class="modal-header">
+                <h2 id="deck-modal-title">Create New Deck</h2>
+            </div>
+            <div class="form-group">
+                <label for="deck-name">Deck Name</label>
+                <input type="text" id="deck-name" placeholder="e.g., Spanish Vocabulary">
+            </div>
+            <div class="form-group">
+                <label for="deck-description">Description (optional)</label>
+                <textarea id="deck-description" placeholder="What will you learn with this deck?"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="saveDeck()">Save Deck</button>
+        </div>
+    </div>
+
+    <!-- Create/Edit Card Modal -->
+    <div class="modal" id="card-modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeCardModal()">&times;</button>
+            <div class="modal-header">
+                <h2 id="card-modal-title">Add New Card</h2>
+            </div>
+            <div class="form-group">
+                <label for="card-front-text">Front (Question)</label>
+                <textarea id="card-front-text-input" placeholder="What do you want to learn?"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Front Image (optional)</label>
+                <div class="image-upload">
+                    <input type="file" id="card-front-image-input" accept="image/*" onchange="previewImage(this, 'front-preview')">
+                    <img id="front-preview" class="image-preview" style="display: none;">
+                    <button class="btn btn-secondary" onclick="removeImage('front')" id="remove-front-btn" style="display: none;">Remove Image</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="card-back-text">Back (Answer)</label>
+                <textarea id="card-back-text-input" placeholder="The answer or information"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Back Image (optional)</label>
+                <div class="image-upload">
+                    <input type="file" id="card-back-image-input" accept="image/*" onchange="previewImage(this, 'back-preview')">
+                    <img id="back-preview" class="image-preview" style="display: none;">
+                    <button class="btn btn-secondary" onclick="removeImage('back')" id="remove-back-btn" style="display: none;">Remove Image</button>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="saveCard()">Save Card</button>
+        </div>
+    </div>
+
+    <!-- View Deck Cards Modal -->
+    <div class="modal" id="view-cards-modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <button class="close-modal" onclick="closeViewCardsModal()">&times;</button>
+            <div class="modal-header">
+                <h2 id="view-cards-title">Deck Cards</h2>
+            </div>
+            <button class="btn btn-primary" onclick="showAddCardModal()" style="margin-bottom: 20px;">+ Add New Card</button>
+            <div class="card-list" id="cards-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Data structure
+        let appData = {
+            decks: [],
+            currentDeckId: null,
+            currentCardId: null,
+            studySession: null
+        };
+
+        // Load data from localStorage
+        function loadData() {
+            const saved = localStorage.getItem('flashcardAppData');
+            if (saved) {
+                appData = JSON.parse(saved);
+            }
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            localStorage.setItem('flashcardAppData', JSON.stringify(appData));
+        }
+
+        // Initialize app
+        function init() {
+            loadData();
+            renderDecks();
+            renderStudyDecks();
+            renderStatistics();
+            setupTabNavigation();
+        }
+
+        // Tab navigation
+        function setupTabNavigation() {
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`${tabName}-tab`).classList.add('active');
+                    
+                    if (tabName === 'study') {
+                        renderStudyDecks();
+                    } else if (tabName === 'statistics') {
+                        renderStatistics();
+                    }
+                });
+            });
+        }
+
+        // Deck Management
+        function showCreateDeckModal() {
+            document.getElementById('deck-modal-title').textContent = 'Create New Deck';
+            document.getElementById('deck-name').value = '';
+            document.getElementById('deck-description').value = '';
+            appData.currentDeckId = null;
+            document.getElementById('deck-modal').classList.add('active');
+        }
+
+        function showEditDeckModal(deckId) {
+            const deck = appData.decks.find(d => d.id === deckId);
+            if (!deck) return;
+            
+            document.getElementById('deck-modal-title').textContent = 'Edit Deck';
+            document.getElementById('deck-name').value = deck.name;
+            document.getElementById('deck-description').value = deck.description || '';
+            appData.currentDeckId = deckId;
+            document.getElementById('deck-modal').classList.add('active');
+        }
+
+        function closeDeckModal() {
+            document.getElementById('deck-modal').classList.remove('active');
+        }
+
+        function saveDeck() {
+            const name = document.getElementById('deck-name').value.trim();
+            if (!name) {
+                alert('Please enter a deck name');
+                return;
+            }
+
+            const description = document.getElementById('deck-description').value.trim();
+
+            if (appData.currentDeckId) {
+                // Edit existing deck
+                const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+                deck.name = name;
+                deck.description = description;
+            } else {
+                // Create new deck
+                const newDeck = {
+                    id: Date.now().toString(),
+                    name: name,
+                    description: description,
+                    cards: [],
+                    createdAt: new Date().toISOString(),
+                    stats: {
+                        totalStudies: 0,
+                        cardsLearned: 0
+                    }
+                };
+                appData.decks.push(newDeck);
+            }
+
+            saveData();
+            renderDecks();
+            renderStudyDecks();
+            closeDeckModal();
+        }
+
+        function deleteDeck(deckId) {
+            if (!confirm('Are you sure you want to delete this deck? This cannot be undone.')) {
+                return;
+            }
+            appData.decks = appData.decks.filter(d => d.id !== deckId);
+            saveData();
+            renderDecks();
+            renderStudyDecks();
+        }
+
+        function renderDecks() {
+            const grid = document.getElementById('deck-grid');
+            if (appData.decks.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h3>No decks yet</h3>
+                        <p>Create your first deck to start learning!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = appData.decks.map(deck => `
+                <div class="deck-card">
+                    <h3>${deck.name}</h3>
+                    ${deck.description ? `<p class="deck-info">${deck.description}</p>` : ''}
+                    <p class="deck-info">📇 ${deck.cards.length} cards</p>
+                    <p class="deck-info">📊 ${deck.stats.totalStudies} study sessions</p>
+                    <div class="deck-actions">
+                        <button class="btn btn-primary" onclick="viewDeckCards('${deck.id}')">View Cards</button>
+                        <button class="btn btn-success" onclick="startStudy('${deck.id}')">Study</button>
+                        <button class="btn btn-warning" onclick="showEditDeckModal('${deck.id}')">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteDeck('${deck.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Card Management
+        function viewDeckCards(deckId) {
+            const deck = appData.decks.find(d => d.id === deckId);
+            if (!deck) return;
+
+            appData.currentDeckId = deckId;
+            document.getElementById('view-cards-title').textContent = `${deck.name} - Cards`;
+            renderCardsList();
+            document.getElementById('view-cards-modal').classList.add('active');
+        }
+
+        function renderCardsList() {
+            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+            if (!deck) return;
+
+            const list = document.getElementById('cards-list');
+            if (deck.cards.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🃏</div>
+                        <h3>No cards yet</h3>
+                        <p>Add your first card to start studying!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = deck.cards.map(card => `
+                <div class="card-item">
+                    <div class="card-item-header">
+                        <strong>Front:</strong>
+                    </div>
+                    <p>${card.frontText || '(No text)'}</p>
+                    ${card.frontImage ? '<p><em>📷 Image attached</em></p>' : ''}
+                    <div class="card-item-header" style="margin-top: 10px;">
+                        <strong>Back:</strong>
+                    </div>
+                    <p>${card.backText || '(No text)'}</p>
+                    ${card.backImage ? '<p><em>📷 Image attached</em></p>' : ''}
+                    <div class="card-item-actions">
+                        <button class="btn btn-warning" onclick="editCard('${card.id}')">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteCard('${card.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddCardModal() {
+            document.getElementById('card-modal-title').textContent = 'Add New Card';
+            document.getElementById('card-front-text-input').value = '';
+            document.getElementById('card-back-text-input').value = '';
+            document.getElementById('card-front-image-input').value = '';
+            document.getElementById('card-back-image-input').value = '';
+            document.getElementById('front-preview').style.display = 'none';
+            document.getElementById('back-preview').style.display = 'none';
+            document.getElementById('remove-front-btn').style.display = 'none';
+            document.getElementById('remove-back-btn').style.display = 'none';
+            appData.currentCardId = null;
+            document.getElementById('card-modal').classList.add('active');
+        }
+
+        function editCard(cardId) {
+            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+            const card = deck.cards.find(c => c.id === cardId);
+            if (!card) return;
+
+            document.getElementById('card-modal-title').textContent = 'Edit Card';
+            document.getElementById('card-front-text-input').value = card.frontText || '';
+            document.getElementById('card-back-text-input').value = card.backText || '';
+            
+            // Handle front image
+            if (card.frontImage) {
+                document.getElementById('front-preview').src = card.frontImage;
+                document.getElementById('front-preview').style.display = 'block';
+                document.getElementById('remove-front-btn').style.display = 'block';
+            } else {
+                document.getElementById('front-preview').style.display = 'none';
+                document.getElementById('remove-front-btn').style.display = 'none';
+            }
+            
+            // Handle back image
+            if (card.backImage) {
+                document.getElementById('back-preview').src = card.backImage;
+                document.getElementById('back-preview').style.display = 'block';
+                document.getElementById('remove-back-btn').style.display = 'block';
+            } else {
+                document.getElementById('back-preview').style.display = 'none';
+                document.getElementById('remove-back-btn').style.display = 'none';
+            }
+
+            appData.currentCardId = cardId;
+            document.getElementById('card-modal').classList.add('active');
+        }
+
+        function closeCardModal() {
+            document.getElementById('card-modal').classList.remove('active');
+        }
+
+        function closeViewCardsModal() {
+            document.getElementById('view-cards-modal').classList.remove('active');
+        }
+
+        function previewImage(input, previewId) {
+            const preview = document.getElementById(previewId);
+            const removeBtn = document.getElementById(`remove-${previewId.split('-')[0]}-btn`);
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    removeBtn.style.display = 'block';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function removeImage(side) {
+            const input = document.getElementById(`card-${side}-image-input`);
+            const preview = document.getElementById(`${side}-preview`);
+            const removeBtn = document.getElementById(`remove-${side}-btn`);
+            
+            input.value = '';
+            preview.src = '';
+            preview.style.display = 'none';
+            removeBtn.style.display = 'none';
+        }
+
+        function saveCard() {
+            const frontText = document.getElementById('card-front-text-input').value.trim();
+            const backText = document.getElementById('card-back-text-input').value.trim();
+            const frontPreview = document.getElementById('front-preview');
+            const backPreview = document.getElementById('back-preview');
+
+            if (!frontText && !frontPreview.src) {
+                alert('Please add at least text or an image to the front of the card');
+                return;
+            }
+
+            if (!backText && !backPreview.src) {
+                alert('Please add at least text or an image to the back of the card');
+                return;
+            }
+
+            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+
+            const cardData = {
+                frontText: frontText,
+                backText: backText,
+                frontImage: frontPreview.style.display !== 'none' ? frontPreview.src : null,
+                backImage: backPreview.style.display !== 'none' ? backPreview.src : null
+            };
+
+            if (appData.currentCardId) {
+                // Edit existing card
+                const card = deck.cards.find(c => c.id === appData.currentCardId);
+                Object.assign(card, cardData);
+            } else {
+                // Create new card
+                const newCard = {
+                    id: Date.now().toString(),
+                    ...cardData,
+                    createdAt: new Date().toISOString()
+                };
+                deck.cards.push(newCard);
+            }
+
+            saveData();
+            renderCardsList();
+            renderDecks();
+            closeCardModal();
+        }
+
+        function deleteCard(cardId) {
+            if (!confirm('Are you sure you want to delete this card?')) {
+                return;
+            }
+            const deck = appData.decks.find(d => d.id === appData.currentDeckId);
+            deck.cards = deck.cards.filter(c => c.id !== cardId);
+            saveData();
+            renderCardsList();
+            renderDecks();
+        }
+
+        // Study Session
+        function renderStudyDecks() {
+            const grid = document.getElementById('study-deck-grid');
+            const studyDecks = appData.decks.filter(d => d.cards.length > 0);
+
+            if (studyDecks.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h3>No decks available for study</h3>
+                        <p>Create a deck and add some cards to start studying!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = studyDecks.map(deck => `
+                <div class="deck-card" onclick="startStudy('${deck.id}')">
+                    <h3>${deck.name}</h3>
+                    ${deck.description ? `<p class="deck-info">${deck.description}</p>` : ''}
+                    <p class="deck-info">📇 ${deck.cards.length} cards</p>
+                    <p class="deck-info">📊 ${deck.stats.totalStudies} sessions completed</p>
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 10px;">Start Studying</button>
+                </div>
+            `).join('');
+        }
+
+        function startStudy(deckId) {
+            const deck = appData.decks.find(d => d.id === deckId);
+            if (!deck || deck.cards.length === 0) {
+                alert('This deck has no cards to study!');
+                return;
+            }
+
+            // Initialize study session
+            appData.studySession = {
+                deckId: deckId,
+                studyCards: [...deck.cards],
+                currentIndex: 0,
+                isFlipped: false,
+                completed: 0,
+                total: deck.cards.length
+            };
+
+            // Shuffle cards
+            appData.studySession.studyCards.sort(() => Math.random() - 0.5);
+
+            // Show study interface
+            document.getElementById('study-selection').style.display = 'none';
+            document.getElementById('study-session').style.display = 'block';
+            document.getElementById('study-complete').style.display = 'none';
+
+            showCurrentCard();
+        }
+
+        function showCurrentCard() {
+            const session = appData.studySession;
+            if (!session || session.currentIndex >= session.studyCards.length) {
+                completeStudySession();
+                return;
+            }
+
+            const card = session.studyCards[session.currentIndex];
+            
+            // Reset flip
+            document.getElementById('flashcard-inner').classList.remove('flipped');
+            session.isFlipped = false;
+
+            // Front
+            document.getElementById('card-front-text').textContent = card.frontText || '';
+            const frontImg = document.getElementById('card-front-image');
+            if (card.frontImage) {
+                frontImg.src = card.frontImage;
+                frontImg.style.display = 'block';
+            } else {
+                frontImg.style.display = 'none';
+            }
+
+            // Back
+            document.getElementById('card-back-text').textContent = card.backText || '';
+            const backImg = document.getElementById('card-back-image');
+            if (card.backImage) {
+                backImg.src = card.backImage;
+                backImg.style.display = 'block';
+            } else {
+                backImg.style.display = 'none';
+            }
+
+            // Update progress
+            updateStudyProgress();
+        }
+
+        function flipCard() {
+            const inner = document.getElementById('flashcard-inner');
+            inner.classList.toggle('flipped');
+            appData.studySession.isFlipped = !appData.studySession.isFlipped;
+        }
+
+        function rateCard(rating) {
+            const session = appData.studySession;
+            if (!session || !session.isFlipped) {
+                if (!session.isFlipped) {
+                    alert('Please flip the card to see the answer first!');
+                }
+                return;
+            }
+
+            const currentCard = session.studyCards[session.currentIndex];
+
+            // Handle different ratings
+            switch (rating) {
+                case 'again': // Add 3 times
+                    session.studyCards.push(currentCard, currentCard, currentCard);
+                    break;
+                case 'hard': // Add 2 times
+                    session.studyCards.push(currentCard, currentCard);
+                    break;
+                case 'good': // Add 1 time
+                    session.studyCards.push(currentCard);
+                    break;
+                case 'easy': // Remove from deck
+                    session.completed++;
+                    break;
+            }
+
+            session.currentIndex++;
+            showCurrentCard();
+        }
+
+        function updateStudyProgress() {
+            const session = appData.studySession;
+            const remaining = session.studyCards.length - session.currentIndex;
+            const progress = Math.round((session.completed / session.total) * 100);
+            
+            document.getElementById('study-progress').textContent = 
+                `Card ${session.currentIndex + 1} of ${session.studyCards.length} | ${session.completed} of ${session.total} mastered`;
+            
+            const progressFill = document.getElementById('progress-fill');
+            progressFill.style.width = `${progress}%`;
+            progressFill.textContent = `${progress}%`;
+        }
+
+        function completeStudySession() {
+            const session = appData.studySession;
+            const deck = appData.decks.find(d => d.id === session.deckId);
+            
+            // Update statistics
+            deck.stats.totalStudies++;
+            deck.stats.cardsLearned = session.completed;
+            saveData();
+
+            // Show completion screen
+            document.getElementById('study-session').style.display = 'none';
+            document.getElementById('study-complete').style.display = 'block';
+            
+            renderStatistics();
+        }
+
+        function exitStudySession() {
+            if (appData.studySession) {
+                const deck = appData.decks.find(d => d.id === appData.studySession.deckId);
+                if (deck) {
+                    deck.stats.totalStudies++;
+                    saveData();
+                }
+            }
+            
+            appData.studySession = null;
+            document.getElementById('study-selection').style.display = 'block';
+            document.getElementById('study-session').style.display = 'none';
+            document.getElementById('study-complete').style.display = 'none';
+            renderStudyDecks();
+        }
+
+        // Statistics
+        function renderStatistics() {
+            const grid = document.getElementById('stats-grid');
+            
+            const totalDecks = appData.decks.length;
+            const totalCards = appData.decks.reduce((sum, deck) => sum + deck.cards.length, 0);
+            const totalStudies = appData.decks.reduce((sum, deck) => sum + deck.stats.totalStudies, 0);
+            const totalLearned = appData.decks.reduce((sum, deck) => sum + deck.stats.cardsLearned, 0);
+
+            grid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${totalDecks}</div>
+                    <div class="stat-label">Total Decks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${totalCards}</div>
+                    <div class="stat-label">Total Cards</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${totalStudies}</div>
+                    <div class="stat-label">Study Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${totalLearned}</div>
+                    <div class="stat-label">Cards Mastered</div>
+                </div>
+            `;
+        }
+
+        // Initialize app when page loads
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
